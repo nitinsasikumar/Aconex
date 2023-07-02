@@ -1,1 +1,92 @@
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { readFile } from 'fs/promises';
+
+// Aconex API base URL
+const API_BASE_URL = 'https://api.aconex.com/';
+
+// Aconex project IDs
+const PROJECT_1_ID = '1879048422';
+const PROJECT_2_ID = '1879048400';
+
+// Aconex login credentials
+const USERNAME = 'poleary';
+const PASSWORD = 'Auth3nt1c';
+
+// Function to authenticate with Aconex and obtain an access token
+async function authenticate(): Promise<string> {
+  try {
+    const response = await axios.post(`${API_BASE_URL}oauth/token`, {
+      grant_type: 'password',
+      username: USERNAME,
+      password: PASSWORD,
+    });
+    const { access_token } = response.data;
+    return access_token;
+  } catch (error) {
+    throw new Error('Authentication failed');
+  }
+}
+
+// Function to upload a document to a project
+async function uploadDocument(accessToken: string, projectId: string, filePath: string): Promise<string> {
+  try {
+    const fileContent = await readFile(filePath, 'utf-8');
+    
+    const response = await axios.post(`${API_BASE_URL}v1/projects/${projectId}/documents`, {
+      content: fileContent,
+      // Add other document properties as required
+    }, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    
+    const { documentId } = response.data;
+    return documentId;
+  } catch (error) {
+    throw new Error('Document upload failed');
+  }
+}
+
+// Function to transfer a document from one project to another
+async function transferDocument(accessToken: string, sourceProjectId: string, targetProjectId: string, documentId: string): Promise<void> {
+  try {
+    await axios.patch(`${API_BASE_URL}v1/projects/${sourceProjectId}/documents/${documentId}`, {
+      projectId: targetProjectId,
+    }, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  } catch (error) {
+    throw new Error('Document transfer failed');
+  }
+}
+
+// Main function to transfer documents between projects
+async function transferDocuments(): Promise<void> {
+  try {
+    const accessToken = await authenticate();
+
+    // Upload documents to project 1
+    const documentIds: string[] = [];
+    for (let i = 1; i <= 10; i++) {
+      const filePath = `/path/to/document_${i}.pdf`;
+      const documentId = await uploadDocument(accessToken, PROJECT_1_ID, filePath);
+      documentIds.push(documentId);
+    }
+
+    // Transfer documents to project 2
+    for (const documentId of documentIds) {
+      await transferDocument(accessToken, PROJECT_1_ID, PROJECT_2_ID, documentId);
+    }
+
+    console.log('Documents transferred successfully!');
+  } catch (error) {
+    console.error('An error occurred:', error.message);
+  }
+}
+
+// Run the document transfer
+transferDocuments();
 
